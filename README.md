@@ -43,18 +43,21 @@ Indian multi-rail reconciliation specifically is harder than a generic
 ## The actual result (not asserted — reproducible)
 
 Running the same 300-order synthetic batch (seed 42) through both a naive
-baseline and the current engine:
+baseline and the current engine, verified live against the running dashboard,
+not estimated:
 
 | | Naive (only recognizes legacy 194O) | Current engine |
 |---|---|---|
-| Match rate | ~45% | ~84% |
-| False "unrecognized TDS regime" flags | ~20 | **0** |
+| Match rate | 43.1% | 81.4% |
+| False "unrecognized TDS regime" flags | 132 | **0** |
 
 The naive baseline isn't a strawman — it's what any reconciliation system
 built before this transition window actually does: treat the new,
-perfectly legitimate 393(1)/1035 code as a data error. Reproduce it
-yourself: `npm run dev`, then run a batch with the resolver toggle off and
-compare the two report panels side by side.
+perfectly legitimate 393(1)/1035 code as a data error, on roughly half the
+batch, because the TDS regime is assigned close to 50/50 by design (see
+`src/data/generator.ts`). Reproduce it yourself: `npm run dev`, run a batch
+with seed 42 and 300 orders, and compare the two report panels — these
+numbers came from that exact request, not a smaller sample scaled up.
 
 ## Architecture
 
