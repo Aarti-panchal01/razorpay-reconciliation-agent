@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import type { BankStatementEntry, SettlementRecord } from "@/domain/types";
 
 /**
@@ -9,12 +9,22 @@ import type { BankStatementEntry, SettlementRecord } from "@/domain/types";
  * pipeline: it never sees the amount math or the compliance rules, only
  * the judgment call a human reviewer would otherwise make by eye.
  *
- * Deliberately built on the plain Anthropic SDK with structured tool
- * output, not the full Claude Agent SDK. This is a single-shot, bounded
- * classification over a handful of candidates — not a multi-step
- * autonomous task — so the heavier agent loop (file access, multi-turn
- * planning, bash) would be the wrong tool for the job. That's as much an
- * "AI judgment" decision as picking Claude in the first place.
+ * Runs against OpenRouter's OpenAI-compatible chat-completions API rather
+ * than a provider-specific SDK, on purpose: the resolver only needs
+ * standard tool-calling, so building it against the OpenAI-compatible
+ * shape (via the official `openai` package pointed at OpenRouter's base
+ * URL) means the same code works against any OpenRouter-hosted model —
+ * including free-tier ones — without touching resolver logic, just the
+ * env var. Model defaults to a free OpenRouter model; check
+ * https://openrouter.ai/models?max_price=0 for what's currently free, since
+ * that roster changes, and override via RESOLVER_MODEL if the default ever
+ * disappears.
+ *
+ * Deliberately a single-shot structured tool call, not the full Claude
+ * Agent SDK or any multi-step agent framework — this is a bounded
+ * classification over a handful of candidates, not a multi-turn autonomous
+ * task, so a heavier agent loop (file access, multi-turn planning) would
+ * be the wrong tool for the job regardless of which model sits behind it.
  */
 
 export interface ResolverCandidate {
@@ -28,29 +38,33 @@ export interface ResolverVerdict {
   explanation: string;
 }
 
-const RESOLUTION_TOOL = {
-  name: "record_resolution",
-  description:
-    "Record the judgment for one ambiguous settlement-to-bank-credit attribution.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      verdict: {
-        type: "string" as const,
-        enum: ["confirm_match", "escalate"],
-        description:
-          "'confirm_match' only if one candidate is clearly the right one. 'escalate' if genuinely uncertain — never guess.",
+const DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+
+const RESOLUTION_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
+  type: "function",
+  function: {
+    name: "record_resolution",
+    description: "Record the judgment for one ambiguous settlement-to-bank-credit attribution.",
+    parameters: {
+      type: "object",
+      properties: {
+        verdict: {
+          type: "string",
+          enum: ["confirm_match", "escalate"],
+          description:
+            "'confirm_match' only if one candidate is clearly the right one. 'escalate' if genuinely uncertain — never guess.",
+        },
+        matchedUtr: {
+          type: "string",
+          description: "The UTR of the chosen candidate, required when verdict is confirm_match.",
+        },
+        explanation: {
+          type: "string",
+          description: "One or two plain-English sentences a non-technical reviewer can read in the audit log.",
+        },
       },
-      matchedUtr: {
-        type: "string" as const,
-        description: "The UTR of the chosen candidate, required when verdict is confirm_match.",
-      },
-      explanation: {
-        type: "string" as const,
-        description: "One or two plain-English sentences a non-technical reviewer can read in the audit log.",
-      },
+      required: ["verdict", "explanation"],
     },
-    required: ["verdict", "explanation"],
   },
 };
 
@@ -69,7 +83,9 @@ Settlement: orderId=${settlement.orderId}, paymentId=${settlement.paymentId}, me
 Candidate bank credit(s):
 ${candidateLines}
 
-Decide whether one candidate is clearly the correct attribution (confirm_match) or whether this should escalate to a human reviewer (escalate). Only confirm_match when you're genuinely confident — a plausible guess is worse than an honest escalation, because confirming a wrong match misattributes real money.`;
+Decide whether one candidate is clearly the correct attribution (confirm_match) or whether this should escalate to a human reviewer (escalate). Only confirm_match when you're genuinely confident — a plausible guess is worse than an honest escalation, because confirming a wrong match misattributes real money.
+
+Call the record_resolution tool with your answer.`;
 }
 
 /**
@@ -82,7 +98,7 @@ export async function resolveAmbiguousCase(
   settlement: SettlementRecord,
   candidates: ResolverCandidate[]
 ): Promise<ResolverVerdict> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     return {
       paymentId: settlement.paymentId,
       verdict: "escalate",
@@ -91,17 +107,21 @@ export async function resolveAmbiguousCase(
   }
 
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const response = await client.messages.create({
-      model: process.env.RESOLVER_MODEL ?? "claude-sonnet-5",
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const response = await client.chat.completions.create({
+      model: process.env.RESOLVER_MODEL ?? DEFAULT_MODEL,
       max_tokens: 512,
       tools: [RESOLUTION_TOOL],
-      tool_choice: { type: "tool", name: "record_resolution" },
+      tool_choice: { type: "function", function: { name: "record_resolution" } },
       messages: [{ role: "user", content: buildPrompt(settlement, candidates) }],
     });
 
-    const toolUse = response.content.find((block) => block.type === "tool_use");
-    if (!toolUse || toolUse.type !== "tool_use") {
+    const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+    if (!toolCall || toolCall.type !== "function") {
       return {
         paymentId: settlement.paymentId,
         verdict: "escalate",
@@ -109,11 +129,16 @@ export async function resolveAmbiguousCase(
       };
     }
 
-    const input = toolUse.input as {
-      verdict: "confirm_match" | "escalate";
-      matchedUtr?: string;
-      explanation: string;
-    };
+    let input: { verdict: "confirm_match" | "escalate"; matchedUtr?: string; explanation: string };
+    try {
+      input = JSON.parse(toolCall.function.arguments);
+    } catch {
+      return {
+        paymentId: settlement.paymentId,
+        verdict: "escalate",
+        explanation: "Resolver returned malformed structured output — escalated to human review.",
+      };
+    }
 
     if (input.verdict === "confirm_match" && !input.matchedUtr) {
       // The model claimed a match without naming which UTR — treat as an

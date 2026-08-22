@@ -3,14 +3,14 @@ import { matchBatch } from "@/engine/match";
 import { resolveBatchAmbiguities } from "@/engine/resolve-batch";
 import type { ReconciliationBatch } from "@/domain/types";
 
-const savedKey = process.env.ANTHROPIC_API_KEY;
+const savedKey = process.env.OPENROUTER_API_KEY;
 
 beforeEach(() => {
-  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
 });
 
 afterEach(() => {
-  if (savedKey) process.env.ANTHROPIC_API_KEY = savedKey;
+  if (savedKey) process.env.OPENROUTER_API_KEY = savedKey;
 });
 
 function ambiguousBatch(): ReconciliationBatch {

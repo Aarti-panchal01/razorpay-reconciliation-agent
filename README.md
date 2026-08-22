@@ -81,11 +81,13 @@ src/
   app/page.tsx             — dashboard: run a batch, see the naive-vs-
                              current comparison and the full exception list.
   app/api/run-batch/       — the one API route.
-tests/                     — 27 tests: tax math, every exception category
+tests/                     — 35 tests: tax math, every exception category
                              by hand, the naive/current TDS comparison,
-                             the resolver's fail-closed behavior, and an
-                             end-to-end accuracy check against generated
-                             ground truth.
+                             the resolver's fail-closed AND mocked-success
+                             paths (no API credits needed to verify either),
+                             the persistence layer's graceful degradation,
+                             and an end-to-end accuracy check against
+                             generated ground truth.
 ```
 
 ### Where AI is used, and — just as deliberately — where it isn't
@@ -98,19 +100,30 @@ time, not probabilistic. Every exception carries a specific, checkable
 reason (`amount_mismatch`, `duplicate_utr`, `orphan_settlement`, etc.), not
 a vibe.
 
-The LLM (Claude, via the plain Anthropic SDK with structured tool-output —
-**not** the full Claude Agent SDK) is confined to exactly one job: judging
-the small number of genuinely ambiguous cases the deterministic engine
-narrows down but can't close — a masked UTR plus an unparseable narration,
-where amount-and-date proximity found one or more candidates but no clean
-key match. That's a bounded, single-shot classification, not a multi-step
-autonomous task, so the full Agent SDK's tool loop (file access, bash,
-multi-turn planning) would be the wrong tool for the job — using it anyway
-just because it's the more impressive-sounding dependency would be worse
-judgment, not better. The resolver is also built to **fail closed**: no
-API key, a network error, or a malformed response all resolve to
-`escalate`, never a guessed match. A wrong confirmed match misattributes
-real money; an honest escalation doesn't.
+The LLM is confined to exactly one job: judging the small number of
+genuinely ambiguous cases the deterministic engine narrows down but can't
+close — a masked UTR plus an unparseable narration, where amount-and-date
+proximity found one or more candidates but no clean key match. That's a
+bounded, single-shot classification, not a multi-step autonomous task, so
+a full agent framework (file access, bash, multi-turn planning) would be
+the wrong tool for the job regardless of which model sits behind it — using
+one anyway just because it sounds more impressive would be worse judgment,
+not better. The resolver is built against the plain `openai` package
+pointed at **OpenRouter's** OpenAI-compatible endpoint rather than a
+provider-specific SDK, on purpose: it only needs standard tool-calling, so
+the same code runs against any OpenRouter-hosted model — including
+free-tier ones — by changing an env var, not the resolver logic. That
+matters concretely here: this submission runs the resolver on a free
+OpenRouter model rather than a paid one, and the code didn't need to change
+to make that swap. The resolver is also built to **fail closed**: no API
+key, a network error, malformed tool-call arguments, or a model claiming a
+match without naming which candidate — all of these resolve to `escalate`,
+never a guessed match. A wrong confirmed match misattributes real money; an
+honest escalation doesn't. Both paths are tested: `tests/resolve-batch.test.ts`
+covers the no-key fail-closed path end to end, and `tests/ambiguous-resolver.test.ts`
+mocks the model response to cover the success path, the "confirms without
+naming a UTR" defensive check, and the malformed-response/network-error
+paths — none of it needs a real API key or credits to verify.
 
 ## What broke, and how we got out
 
@@ -148,15 +161,19 @@ hidden a real regression if one were ever introduced.
 
 ```bash
 npm install
-npm test          # 27 tests, ~0.5s
+npm test          # 35 tests, ~1s
 npx tsc --noEmit  # typecheck
 npm run build     # production build
 npm run dev       # dashboard at http://localhost:3000 (or next free port)
 ```
 
-Set `ANTHROPIC_API_KEY` in `.env.local` to enable the LLM resolver pass;
-without it, ambiguous cases correctly escalate instead of silently
-resolving.
+Copy `.env.local.example` to `.env.local` and fill in your own values.
+Set `OPENROUTER_API_KEY` to enable the LLM resolver pass (a free-tier
+OpenRouter model works — see the comment in `.env.local.example`); without
+it, ambiguous cases correctly escalate instead of silently resolving.
+Set the three `SUPABASE_*` values to persist batch runs (apply
+`supabase/schema.sql` via your project's SQL Editor once); without them,
+the engine works identically, it just doesn't save a history.
 
 ## What's intentionally not built
 
