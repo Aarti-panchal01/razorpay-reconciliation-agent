@@ -8,7 +8,7 @@ order ledger — and, unlike a naive implementation, correctly survives the
 live Indian TDS regime transition instead of flagging half the batch as
 anomalous.
 
-**Live:** _add your deployed URL here after `vercel --prod`_
+**Live:** https://reconiq.vercel.app
 **Repo:** https://github.com/Aarti-panchal01/reconiq
 
 ---
