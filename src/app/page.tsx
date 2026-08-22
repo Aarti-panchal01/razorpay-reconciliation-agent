@@ -78,6 +78,14 @@ interface RunHistoryEntry {
   exceptionCount: number;
 }
 
+// Matched rows are mechanically identical in kind (exact UTR, amount
+// agrees) — rendering all of them for a large batch (seen: 249 rows,
+// 14,500+ px of dead page height) is pure scroll cost with no new
+// information past the first few dozen. Exceptions are never capped: the
+// "nothing cherry-picked" claim specifically depends on that list being
+// complete, and exception counts are naturally small enough not to need it.
+const MATCHED_DISPLAY_CAP = 50;
+
 const CATEGORY_KEYS = Object.keys({
   unmatched_bank_credit: 0,
   unmatched_ledger: 0,
@@ -304,12 +312,23 @@ export default function Dashboard() {
             )}
 
             <section>
-              <h2 className="mb-3 text-sm font-semibold">
+              <h2 className="mb-1 text-sm font-semibold">
                 Results for this batch
                 <span className="ml-2 font-normal text-[var(--text-muted)]">
                   what fraction of {data.orderCount} settlements reconciled automatically, and how fast
                 </span>
               </h2>
+              <p className="mb-3 font-mono text-xs text-[var(--text-secondary)]">
+                match rate = (matched + matched by resolver) ÷ total settlements × 100. Computed server-side in{" "}
+                <code className="rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 py-0.5">
+                  engine/match.ts
+                </code>{" "}
+                from the &ldquo;Run batch&rdquo; click above, which calls{" "}
+                <code className="rounded bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-1 py-0.5">
+                  POST /api/run-batch
+                </code>{" "}
+                — nothing here is hardcoded or estimated, it&apos;s the literal count of this batch&apos;s results.
+              </p>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                 <StatTile
                   label="Match rate"
@@ -388,8 +407,17 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
+              {resultsTab === "matched" && matched.length > MATCHED_DISPLAY_CAP && (
+                <p className="mb-2 text-xs text-[var(--text-muted)]">
+                  Showing the first {MATCHED_DISPLAY_CAP} of {matched.length} — every one matched the same way
+                  (exact UTR, amount agrees), so the rest look identical in kind, not cherry-picked to hide
+                  anything. The exception list above is never capped.
+                </p>
+              )}
               <ExceptionTable
-                rows={resultsTab === "exceptions" ? exceptions : matched}
+                rows={
+                  resultsTab === "exceptions" ? exceptions : matched.slice(0, MATCHED_DISPLAY_CAP)
+                }
                 emptyMessage={
                   resultsTab === "exceptions"
                     ? "No exceptions in this batch."

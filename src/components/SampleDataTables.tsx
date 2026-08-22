@@ -37,7 +37,14 @@ function Table({
   children: React.ReactNode;
 }) {
   return (
-    <div className="glass-panel rounded-2xl p-4">
+    // min-w-0 is load-bearing: CSS Grid items default to min-width:auto,
+    // which refuses to shrink below the content's intrinsic width — that
+    // silently defeats the overflow-x-auto below (it never gets narrow
+    // enough to need scrolling, and instead of scrolling, the last column
+    // just gets visually clipped by the panel edge). Found by screenshot,
+    // not by reading the CSS — this is exactly the kind of bug that looks
+    // fine in the type system and build but is only visible by eye.
+    <div className="glass-panel min-w-0 rounded-2xl p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mb-3 text-xs text-[var(--text-muted)]">{caption}</p>
       <div className="overflow-x-auto">
@@ -76,7 +83,13 @@ export function SampleDataTables({
   ledgerEntries: SampleLedgerEntry[];
 }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
+    // Stacked full-width, not a 3-column grid. Three across at this data
+    // density (up to 5 columns per table) meant real content — the UTR and
+    // narration columns specifically, the two fields the whole point of
+    // this section is to show — got clipped by the panel edge with no
+    // visible scrollbar to hint there was more. Full width means every
+    // column fits without scrolling anything.
+    <div className="grid gap-4">
       <Table
         title="Razorpay settlement report"
         caption="What Razorpay says it settled — gross amount before deductions, net amount after MDR/GST/TCS/TDS."
