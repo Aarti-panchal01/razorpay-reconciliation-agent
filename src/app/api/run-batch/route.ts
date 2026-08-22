@@ -44,6 +44,15 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     seed,
     orderCount,
+    // A sample of the actual three input sources being reconciled — this is
+    // "what are we matching" made concrete, not just an aggregate number.
+    // Capped at 5 rows each; the point is to show shape and mismatch, not
+    // to ship the whole batch back over the wire twice.
+    sample: {
+      settlements: fixture.settlements.slice(0, 5),
+      bankEntries: fixture.bankEntries.slice(0, 5),
+      ledgerEntries: fixture.ledgerEntries.slice(0, 5),
+    },
     naive: summarize(naiveReport),
     current: summarize(realReport, true),
   });

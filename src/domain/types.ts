@@ -61,12 +61,11 @@ export interface LedgerEntry {
 
 export type ExceptionCategory =
   | "unmatched_bank_credit" // settlement has no bank entry in window
-  | "unmatched_ledger" // ledger order has no settlement at all
+  | "unmatched_ledger" // ledger order never produced a settlement at all
   | "amount_mismatch" // matched by UTR, amount off by more than rounding tolerance
   | "duplicate_utr" // two settlement records claim the same UTR
   | "ambiguous_narration" // needs the LLM resolver, deterministic pass gave up
   | "orphan_settlement" // settlement exists with no corresponding ledger order
-  | "unmatched_ledger" // ledger order never produced a settlement at all
   | "unrecognized_tds_regime"; // naive-baseline-only: flags the new 393(1)/1035 code as an anomaly
 
 export interface MatchResult {

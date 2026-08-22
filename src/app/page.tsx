@@ -17,6 +17,8 @@ import {
 import { StatTile } from "@/components/StatTile";
 import { ComparisonChart, type ComparisonDatum } from "@/components/ComparisonChart";
 import { ExceptionTable, type ExceptionRow } from "@/components/ExceptionTable";
+import { SampleDataTables } from "@/components/SampleDataTables";
+import { WorkedExample } from "@/components/WorkedExample";
 import type { BadgeKey } from "@/components/CategoryBadge";
 
 interface CategoryCounts {
@@ -30,7 +32,7 @@ interface CategoryCounts {
 }
 
 interface MatchResultRow extends ExceptionRow {
-  status: string;
+  status: "matched" | "matched_by_resolver" | "exception";
 }
 
 interface ReportSummary {
@@ -44,9 +46,24 @@ interface ReportSummary {
   results?: MatchResultRow[];
 }
 
+interface SampleData {
+  settlements: {
+    paymentId: string;
+    orderId: string;
+    method: string;
+    grossAmount: number;
+    netAmount: number;
+    settlementUtr: string;
+    settlementDate: string;
+  }[];
+  bankEntries: { utr: string; creditAmount: number; creditDate: string; narration: string }[];
+  ledgerEntries: { orderId: string; orderAmount: number; customerRef: string }[];
+}
+
 interface RunBatchResponse {
   seed: number;
   orderCount: number;
+  sample: SampleData;
   naive: ReportSummary;
   current: ReportSummary;
 }
@@ -79,6 +96,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<RunBatchResponse | null>(null);
   const [history, setHistory] = useState<RunHistoryEntry[]>([]);
+  const [resultsTab, setResultsTab] = useState<"exceptions" | "matched">("exceptions");
 
   async function loadHistory() {
     try {
@@ -92,11 +110,6 @@ export default function Dashboard() {
     }
   }
 
-  // Not just `loadHistory()` directly — that flags "avoid calling setState
-  // synchronously within an effect" because the linter can't see into a
-  // separately-defined function. The `ignore` flag also does something
-  // loadHistory() alone wouldn't: it skips the setState if this effect's
-  // cleanup already ran (component unmounted) before the fetch resolves.
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -134,8 +147,11 @@ export default function Dashboard() {
     }
   }
 
-  const exceptions: MatchResultRow[] =
-    data?.current.results?.filter((r) => r.status === "exception") ?? [];
+  const allResults = data?.current.results ?? [];
+  const exceptions = allResults.filter((r) => r.status === "exception");
+  const matched = allResults.filter((r) => r.status !== "exception");
+  const exampleMatched = matched[0];
+  const exampleException = exceptions[0];
 
   const tdsDelta = data
     ? data.naive.exceptionsByCategory.unrecognized_tds_regime -
@@ -168,9 +184,26 @@ export default function Dashboard() {
           </span>
         </header>
 
+        {/* What this actually is — plain language, always visible, read before
+            anything else. This exists because "43.1% match rate" means
+            nothing without it, and no amount of visual polish substitutes
+            for actually saying what the tool does. */}
+        <section className="glass-panel rounded-2xl p-5">
+          <h2 className="mb-2 text-sm font-semibold">What this does</h2>
+          <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
+            A merchant&apos;s money passes through <strong className="text-[var(--foreground)]">three records that
+            don&apos;t naturally agree</strong>: what Razorpay says it settled, what actually landed in the bank
+            (identified by a UTR number, not an order ID), and what the merchant&apos;s own order ledger expects.
+            Reconciling them means matching those three sources back together and being honest about the ones
+            that don&apos;t line up. Click <strong className="text-[var(--foreground)]">Run batch</strong> below
+            to generate a fresh synthetic set of all three (no real transactions — this is test data built to
+            include the same messiness real settlement files have) and watch the matching happen record by record.
+          </p>
+        </section>
+
         <section className="glass-panel rounded-2xl p-5">
           <div className="flex flex-wrap items-end gap-5">
-            <Field label="Seed">
+            <Field label="Seed" hint="Same seed = same generated batch, for reproducibility">
               <input
                 type="number"
                 value={seed}
@@ -178,7 +211,7 @@ export default function Dashboard() {
                 className="w-24 rounded-md border border-[var(--border)] bg-transparent px-2.5 py-1.5 text-sm font-tabular outline-none focus:border-[var(--series-current)] focus:ring-2 focus:ring-[var(--series-current)]/20"
               />
             </Field>
-            <Field label="Order count">
+            <Field label="Order count" hint="How many settlements to generate">
               <input
                 type="number"
                 value={orderCount}
@@ -201,7 +234,7 @@ export default function Dashboard() {
               className="ml-auto inline-flex items-center gap-2 rounded-md bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-opacity disabled:opacity-50"
             >
               {loading ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-              {loading ? "Running…" : "Run batch"}
+              {loading ? "Generating batch and reconciling…" : "Run batch"}
             </button>
           </div>
         </section>
@@ -217,7 +250,7 @@ export default function Dashboard() {
           <div className="glass-panel flex flex-col items-center gap-3 rounded-2xl border-dashed py-20 text-center">
             <ScanSearch size={28} className="text-[var(--text-muted)]" />
             <p className="text-sm text-[var(--text-secondary)]">
-              No batch run yet — set a seed and order count, then run one.
+              No batch run yet — click &ldquo;Run batch&rdquo; above to generate one and see it reconciled.
             </p>
           </div>
         )}
@@ -232,6 +265,32 @@ export default function Dashboard() {
 
         {data && (
           <>
+            {/* The three raw inputs, shown as-is, BEFORE any results. */}
+            <section>
+              <h2 className="mb-3 text-sm font-semibold">
+                What we generated
+                <span className="ml-2 font-normal text-[var(--text-muted)]">
+                  first 5 of {data.orderCount} settlements — same shape for the rest
+                </span>
+              </h2>
+              <SampleDataTables
+                settlements={data.sample.settlements}
+                bankEntries={data.sample.bankEntries}
+                ledgerEntries={data.sample.ledgerEntries}
+              />
+            </section>
+
+            {/* Concrete before/after examples, read before the aggregate stats. */}
+            {(exampleMatched || exampleException) && (
+              <section>
+                <h2 className="mb-3 text-sm font-semibold">How the matching actually works</h2>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {exampleMatched && <WorkedExample row={exampleMatched} />}
+                  {exampleException && <WorkedExample row={exampleException} />}
+                </div>
+              </section>
+            )}
+
             {tdsDelta > 0 && (
               <div className="glass-panel flex items-center gap-3 rounded-2xl border-[var(--status-critical)]/30 px-5 py-4">
                 <ShieldAlert size={20} className="shrink-0 text-[var(--status-critical)]" />
@@ -244,26 +303,41 @@ export default function Dashboard() {
               </div>
             )}
 
-            <section className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              <StatTile label="Match rate" value={`${data.current.matchRatePct.toFixed(1)}%`} icon={Gauge} />
-              <StatTile label="Matched" value={String(data.current.matchedCount)} icon={CheckCircle2} />
-              <StatTile
-                label="Matched by resolver"
-                value={String(data.current.matchedByResolverCount)}
-                icon={Sparkles}
-              />
-              <StatTile
-                label="Exceptions"
-                value={String(data.current.exceptionCount)}
-                icon={TriangleAlert}
-                emphasis={data.current.exceptionCount > 0 ? "critical" : "default"}
-              />
-              <StatTile
-                label="Throughput"
-                value={`${data.current.throughputMsPerRecord.toFixed(3)} ms`}
-                icon={Zap}
-                hint="per record"
-              />
+            <section>
+              <h2 className="mb-3 text-sm font-semibold">
+                Results for this batch
+                <span className="ml-2 font-normal text-[var(--text-muted)]">
+                  what fraction of {data.orderCount} settlements reconciled automatically, and how fast
+                </span>
+              </h2>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                <StatTile
+                  label="Match rate"
+                  value={`${data.current.matchRatePct.toFixed(1)}%`}
+                  icon={Gauge}
+                  hint="matched ÷ total"
+                />
+                <StatTile label="Matched" value={String(data.current.matchedCount)} icon={CheckCircle2} hint="by exact UTR" />
+                <StatTile
+                  label="Matched by resolver"
+                  value={String(data.current.matchedByResolverCount)}
+                  icon={Sparkles}
+                  hint="LLM confirmed"
+                />
+                <StatTile
+                  label="Exceptions"
+                  value={String(data.current.exceptionCount)}
+                  icon={TriangleAlert}
+                  emphasis={data.current.exceptionCount > 0 ? "critical" : "default"}
+                  hint="need a human"
+                />
+                <StatTile
+                  label="Throughput"
+                  value={`${data.current.throughputMsPerRecord.toFixed(3)} ms`}
+                  icon={Zap}
+                  hint="per record"
+                />
+              </div>
             </section>
 
             <section className="glass-panel rounded-2xl p-5">
@@ -274,21 +348,54 @@ export default function Dashboard() {
                 </span>
               </div>
               <p className="mb-3 text-xs text-[var(--text-secondary)]">
-                Same batch, run through both. The naive reconciler only recognizes legacy Section 194O.
+                Same exact batch, run through two versions of the matcher. &ldquo;Naive&rdquo; is what a
+                reconciler built before the TDS transition does: it only recognizes the legacy Section 194O
+                code, so it wrongly treats every new 393(1)/1035-tagged settlement as an anomaly — the tall
+                orange bar under &ldquo;unrecognized TDS regime&rdquo; below. &ldquo;Current&rdquo; is this
+                engine, which recognizes both.
               </p>
               <ComparisonChart data={comparisonData} />
             </section>
 
             <section>
-              <div className="mb-3 flex items-baseline justify-between">
+              <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-semibold">
-                  Honest exception list
+                  Every record, in full
                   <span className="ml-2 font-normal text-[var(--text-muted)]">
-                    {exceptions.length} record{exceptions.length === 1 ? "" : "s"}, full list — nothing cherry-picked
+                    nothing cherry-picked — {matched.length} matched, {exceptions.length} exceptions
                   </span>
                 </h2>
+                <div className="flex gap-1 rounded-lg border border-[var(--border)] p-1">
+                  <button
+                    onClick={() => setResultsTab("exceptions")}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      resultsTab === "exceptions"
+                        ? "bg-[var(--foreground)] text-[var(--background)]"
+                        : "text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    Exceptions ({exceptions.length})
+                  </button>
+                  <button
+                    onClick={() => setResultsTab("matched")}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      resultsTab === "matched"
+                        ? "bg-[var(--foreground)] text-[var(--background)]"
+                        : "text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    Matched ({matched.length})
+                  </button>
+                </div>
               </div>
-              <ExceptionTable rows={exceptions} />
+              <ExceptionTable
+                rows={resultsTab === "exceptions" ? exceptions : matched}
+                emptyMessage={
+                  resultsTab === "exceptions"
+                    ? "No exceptions in this batch."
+                    : "No matches in this batch."
+                }
+              />
             </section>
           </>
         )}
@@ -351,11 +458,14 @@ export default function Dashboard() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--text-muted)]">
+    <label className="flex flex-col gap-1 text-xs font-medium text-[var(--text-muted)]" title={hint}>
       {label}
       {children}
+      <span className="max-w-[10rem] text-[10px] font-normal normal-case leading-tight text-[var(--text-muted)]">
+        {hint}
+      </span>
     </label>
   );
 }
