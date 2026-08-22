@@ -29,7 +29,7 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs shadow-sm">
+    <div className="glass-panel rounded-lg px-3 py-2 text-xs">
       <p className="font-medium mb-1">{label}</p>
       {payload.map((entry) => (
         <p key={entry.name} className="flex items-center gap-1.5 text-[var(--text-secondary)]">

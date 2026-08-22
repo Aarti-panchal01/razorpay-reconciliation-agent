@@ -15,14 +15,14 @@ function money(paise: number): string {
 export function ExceptionTable({ rows }: { rows: ExceptionRow[] }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-8 text-center text-sm text-[var(--text-muted)]">
+      <div className="glass-panel rounded-2xl p-8 text-center text-sm text-[var(--text-muted)]">
         No exceptions in this batch — run one to see the honest exception list.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+    <div className="glass-panel overflow-x-auto rounded-2xl">
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-left border-b border-[var(--border)] text-xs text-[var(--text-muted)] uppercase tracking-wide">

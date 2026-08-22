@@ -26,6 +26,16 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #d03b3b;
+
+  /* Glass panel tokens. Opacity is deliberately high (not the very-low
+     alpha some glassmorphism examples use) — text sits directly on these
+     panels, and a high-opacity blur reads as "frosted glass" just as
+     clearly as a low-opacity one while keeping contrast close to the
+     original solid-surface values instead of depending on whatever
+     happens to be behind it. */
+  --glass-surface: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 32px rgba(11, 11, 11, 0.08), 0 1px 2px rgba(11, 11, 11, 0.04);
 }
 
 @theme inline {
@@ -53,6 +63,10 @@
     --status-warning: #fab219;
     --status-serious: #ec835a;
     --status-critical: #e66767;
+
+    --glass-surface: rgba(30, 30, 29, 0.65);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -73,14 +87,51 @@
   --status-warning: #fab219;
   --status-serious: #ec835a;
   --status-critical: #e66767;
+
+  --glass-surface: rgba(30, 30, 29, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 body {
-  background: var(--background);
+  /* Ambient backdrop the glass panels actually have something to blur —
+     flat backdrop-blur over a single solid color reads as nothing. Two
+     soft, low-opacity blobs from the existing series hues, fixed so they
+     don't scroll with the page (the panels floating over a static field
+     is what reads as "glass" rather than "semi-transparent card"). */
+  background:
+    radial-gradient(at 12% 15%, color-mix(in oklab, var(--series-current) 16%, transparent) 0%, transparent 55%),
+    radial-gradient(at 88% 80%, color-mix(in oklab, var(--series-naive) 14%, transparent) 0%, transparent 55%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 .font-tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Frosted glass panel. `-webkit-backdrop-filter` is required for Safari;
+   browsers without backdrop-filter support at all just show the
+   semi-transparent surface color with no blur — a plain translucent card,
+   not broken, so no fallback branch is needed.
+
+   Deliberately inside @layer components, not a bare top-level rule: a few
+   call sites combine glass-panel with a Tailwind border-color utility
+   (e.g. border-[var(--status-critical)]/30) to tint one panel's border for
+   an error/critical state, with no separate border-width utility since
+   glass-panel already supplies that. Tailwind v4's utilities land in
+   @layer utilities, which outranks @layer components — but an unlayered
+   rule outranks EVERY layer regardless of source order, so leaving this
+   unlayered would make those color-tint overrides silently never apply.
+   This is exactly the case Tailwind's own docs give @layer components for. */
+@layer components {
+  .glass-panel {
+    background: var(--glass-surface);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
 }

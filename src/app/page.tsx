@@ -153,22 +153,22 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 py-8 space-y-8">
-        <header className="flex items-center justify-between border-b border-[var(--border)] pb-5">
+        <header className="glass-panel flex items-center justify-between rounded-2xl px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[var(--series-current)] text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--series-current)] text-white shadow-sm">
               <Zap size={18} strokeWidth={2.5} />
             </div>
             <div>
-              <h1 className="text-base font-semibold leading-tight">Reconciliation Agent</h1>
+              <h1 className="text-base font-semibold leading-tight">ReconIQ</h1>
               <p className="text-xs text-[var(--text-muted)]">Multi-rail settlement matching, honest exceptions</p>
             </div>
           </div>
-          <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--background)]/40 px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">
             Track 04 · AI Finance Controller
           </span>
         </header>
 
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
+        <section className="glass-panel rounded-2xl p-5">
           <div className="flex flex-wrap items-end gap-5">
             <Field label="Seed">
               <input
@@ -207,14 +207,14 @@ export default function Dashboard() {
         </section>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-[var(--status-critical)]/30 bg-[color-mix(in_oklab,var(--status-critical)_10%,transparent)] p-4 text-sm text-[var(--status-critical)]">
+          <div className="glass-panel flex items-start gap-2 rounded-2xl border-[var(--status-critical)]/30 p-4 text-sm text-[var(--status-critical)]">
             <TriangleAlert size={16} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {!data && !loading && !error && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-[var(--border)] py-20 text-center">
+          <div className="glass-panel flex flex-col items-center gap-3 rounded-2xl border-dashed py-20 text-center">
             <ScanSearch size={28} className="text-[var(--text-muted)]" />
             <p className="text-sm text-[var(--text-secondary)]">
               No batch run yet — set a seed and order count, then run one.
@@ -225,7 +225,7 @@ export default function Dashboard() {
         {loading && !data && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-24 animate-pulse rounded-lg border border-[var(--border)] bg-[var(--surface)]" />
+              <div key={i} className="glass-panel h-24 animate-pulse rounded-2xl" />
             ))}
           </div>
         )}
@@ -233,7 +233,7 @@ export default function Dashboard() {
         {data && (
           <>
             {tdsDelta > 0 && (
-              <div className="flex items-center gap-3 rounded-lg border border-[var(--status-critical)]/30 bg-[color-mix(in_oklab,var(--status-critical)_8%,transparent)] px-5 py-4">
+              <div className="glass-panel flex items-center gap-3 rounded-2xl border-[var(--status-critical)]/30 px-5 py-4">
                 <ShieldAlert size={20} className="shrink-0 text-[var(--status-critical)]" />
                 <p className="text-sm">
                   <span className="font-tabular font-semibold text-[var(--status-critical)]">{tdsDelta}</span>{" "}
@@ -266,7 +266,7 @@ export default function Dashboard() {
               />
             </section>
 
-            <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
+            <section className="glass-panel rounded-2xl p-5">
               <div className="mb-1 flex items-baseline justify-between">
                 <h2 className="text-sm font-semibold">Naive baseline vs. current engine</h2>
                 <span className="text-xs text-[var(--text-muted)]">
@@ -300,7 +300,7 @@ export default function Dashboard() {
               <h2 className="text-sm font-semibold">Recent runs</h2>
               <span className="text-xs text-[var(--text-muted)]">persisted in Supabase</span>
             </div>
-            <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+            <div className="glass-panel overflow-x-auto rounded-2xl">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
