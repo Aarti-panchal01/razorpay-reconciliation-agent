@@ -38,7 +38,7 @@ export interface ResolverVerdict {
   explanation: string;
 }
 
-const DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free";
 
 const RESOLUTION_TOOL: OpenAI.Chat.Completions.ChatCompletionTool = {
   type: "function",
@@ -113,7 +113,13 @@ export async function resolveAmbiguousCase(
     });
 
     const response = await client.chat.completions.create({
-      model: process.env.RESOLVER_MODEL ?? DEFAULT_MODEL,
+      // Deliberately `||`, not `??` — an unset env var in .env.local (e.g.
+      // `RESOLVER_MODEL=` with nothing after the `=`) reads back as an
+      // empty string, not undefined, and `??` only falls back on
+      // null/undefined. `??` here sent `model: ""` to OpenRouter and got a
+      // real "400 No models provided" back — found live, not in a test,
+      // because the mocked tests never exercise env var parsing at all.
+      model: process.env.RESOLVER_MODEL || DEFAULT_MODEL,
       max_tokens: 512,
       tools: [RESOLUTION_TOOL],
       tool_choice: { type: "function", function: { name: "record_resolution" } },

@@ -85,6 +85,23 @@ describe("resolveAmbiguousCase — with a mocked model response (OpenRouter, Ope
     expect(verdict.matchedUtr).toBe("UTR0000000000");
   });
 
+  it("falls back to the default model when RESOLVER_MODEL is an empty string, not just when it's unset", async () => {
+    // Regression test for a real bug found live: `RESOLVER_MODEL=` with
+    // nothing after the `=` in .env.local reads back as "", and `??` only
+    // falls back on null/undefined — so this used to send `model: ""` to
+    // OpenRouter and get a genuine "400 No models provided" back.
+    process.env.RESOLVER_MODEL = "";
+    createMock.mockResolvedValue(
+      toolCallResponse({ verdict: "escalate", explanation: "irrelevant to this test" })
+    );
+
+    const { resolveAmbiguousCase } = await import("@/resolver/ambiguous-resolver");
+    await resolveAmbiguousCase(settlement, candidates);
+
+    expect(createMock).toHaveBeenCalledWith(expect.objectContaining({ model: expect.stringMatching(/.+/) }));
+    delete process.env.RESOLVER_MODEL;
+  });
+
   it("escalates rather than trusting a confirm_match with no named UTR", async () => {
     createMock.mockResolvedValue(
       toolCallResponse({ verdict: "confirm_match", explanation: "Looks right." })

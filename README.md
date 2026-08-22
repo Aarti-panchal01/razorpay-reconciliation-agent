@@ -81,7 +81,7 @@ src/
   app/page.tsx             — dashboard: run a batch, see the naive-vs-
                              current comparison and the full exception list.
   app/api/run-batch/       — the one API route.
-tests/                     — 35 tests: tax math, every exception category
+tests/                     — 36 tests: tax math, every exception category
                              by hand, the naive/current TDS comparison,
                              the resolver's fail-closed AND mocked-success
                              paths (no API credits needed to verify either),
@@ -125,6 +125,14 @@ mocks the model response to cover the success path, the "confirms without
 naming a UTR" defensive check, and the malformed-response/network-error
 paths — none of it needs a real API key or credits to verify.
 
+Also verified live, not just mocked: running the seed-42/300-order batch
+against a real free OpenRouter model resolved a genuinely ambiguous case
+correctly (matching amount, date, and narration) while independently
+declining nine others with legitimate reasoning — "generic narration...
+requiring human review" — rather than confirming everything it was handed.
+That distinction (a model that says no) is the entire point of building
+the escalate path at all.
+
 ## What broke, and how we got out
 
 While writing the "never double-counts one bank credit across two
@@ -157,11 +165,29 @@ the whole point of this test is that the naive baseline misses *every*
 non-orphan new-regime case, and a looser threshold would have quietly
 hidden a real regression if one were ever introduced.
 
+A third, found live rather than in a test at all: with a real
+`OPENROUTER_API_KEY` configured, the resolver still resolved nothing —
+every ambiguous case escalated with `"400 No models provided"` in the
+reasoning. `RESOLVER_MODEL=` with nothing after the `=` in `.env.local`
+reads back as an empty string, not `undefined`, and the code used `??`
+to fall back to a default model — which only triggers on `null`/`undefined`,
+never on `""`. The empty string was winning, and an empty model name is
+what OpenRouter was rejecting. Fixed by switching to `||`, which treats an
+empty string the same as unset, and added a test that sets
+`RESOLVER_MODEL=""` and asserts the actual model sent to the API is
+non-empty — a case the mocked tests couldn't have caught on their own,
+since they never touch env var parsing at all. Separately, the specific
+free model this pointed to by default (`meta-llama/llama-3.3-70b-instruct:free`)
+had been moved to paid-only on OpenRouter since it was first picked — the
+exact model-roster drift the code comments already warned about — so the
+default was swapped to a model confirmed free via OpenRouter's live
+`/api/v1/models` endpoint at the time of this commit, not assumed.
+
 ## Running it
 
 ```bash
 npm install
-npm test          # 35 tests, ~1s
+npm test          # 36 tests, ~1s
 npx tsc --noEmit  # typecheck
 npm run build     # production build
 npm run dev       # dashboard at http://localhost:3000 (or next free port)
