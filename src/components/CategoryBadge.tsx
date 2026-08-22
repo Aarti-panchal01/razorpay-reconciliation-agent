@@ -36,12 +36,19 @@ const CONFIG: Record<BadgeKey, { label: string; status: Status; icon: LucideIcon
   unrecognized_tds_regime: { label: "Unrecognized TDS regime", status: "critical", icon: ShieldAlert },
 };
 
+// No `dark:` variants — this app is dark-only now (see globals.css). The
+// previous version's warning/serious colors had a light-mode text color as
+// the unconditional default and a `dark:` override for the dark value;
+// with the light/dark toggle removed entirely, that default would render
+// as near-invisible dark-brown-on-black for anyone whose OS reports a
+// light color-scheme preference, since Tailwind's `dark:` variant still
+// checks that even with no in-app toggle left to drive it.
 const STATUS_CLASSES: Record<Status, string> = {
   good: "text-[var(--status-good-text)] bg-[color-mix(in_oklab,var(--status-good)_14%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-good)_35%,transparent)]",
   warning:
-    "text-[#8a5a00] dark:text-[var(--status-warning)] bg-[color-mix(in_oklab,var(--status-warning)_18%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-warning)_45%,transparent)]",
+    "text-[var(--status-warning)] bg-[color-mix(in_oklab,var(--status-warning)_18%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-warning)_45%,transparent)]",
   serious:
-    "text-[#9c3f1e] dark:text-[var(--status-serious)] bg-[color-mix(in_oklab,var(--status-serious)_16%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-serious)_40%,transparent)]",
+    "text-[var(--status-serious)] bg-[color-mix(in_oklab,var(--status-serious)_16%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-serious)_40%,transparent)]",
   critical:
     "text-[var(--status-critical)] bg-[color-mix(in_oklab,var(--status-critical)_14%,transparent)] ring-1 ring-inset ring-[color-mix(in_oklab,var(--status-critical)_40%,transparent)]",
 };

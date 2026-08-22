@@ -1,45 +1,50 @@
 @import "tailwindcss";
 
 /*
- * Palette: dataviz-skill validated instance. Two categorical slots (1 blue,
- * 2 orange) for the naive-vs-current comparison — an adjacent pair from the
- * documented 8-hue order, already validated (CVD ΔE 9.1 light / 8.4 dark).
- * Status roles (good/warning/serious/critical) are reserved for exception
- * severity and never reused as chart series. Dark values declared under both
- * the OS media query and the explicit [data-theme="dark"] toggle scope, per
- * the palette doc, so a manual toggle always wins over the OS setting.
+ * Dark-only, Framer-inspired: near-black background, flat dark cards with
+ * barely-visible borders, ONE restrained accent color — not a light theme
+ * with a dark override, and not a multi-hue gradient mesh. Two earlier
+ * passes tried "glassmorphism" (colorful blurred panels) and got explicit
+ * negative feedback pointing at framer.com specifically — screenshotted it
+ * directly rather than going from memory: pure black page, dark charcoal
+ * cards, one blue accent used sparingly, status colors as small pills
+ * (their own "Live" tag is exactly this), no backdrop-blur anywhere
+ * visible, no rainbow. This palette matches that, not the glass one.
+ *
+ * Dropping the light-mode variant entirely rather than maintaining two
+ * themes — this design doesn't have a light-mode identity to preserve
+ * (Framer's own site doesn't have one either), and there's no in-app
+ * toggle, so a "light mode" here would only ever appear by OS-preference
+ * accident and never match the intended look.
  */
 :root {
-  --background: #f9f9f7;
-  --surface: #fcfcfb;
-  --foreground: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --border: rgba(11, 11, 11, 0.1);
-  --gridline: #e1e0d9;
+  --background: #000000;
+  --surface: #0d0d0e;
+  --surface-raised: #151517;
+  --foreground: #ffffff;
+  --text-secondary: #a3a3a8;
+  --text-muted: #6b6b70;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --gridline: rgba(255, 255, 255, 0.06);
 
-  --series-current: #2a78d6;
-  --series-naive: #eb6834;
+  --series-current: #3b82f6;
+  --series-naive: #f0803c;
 
-  --status-good: #0ca30c;
-  --status-good-text: #006300;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
+  --status-good: #2ecc71;
+  --status-good-text: #4ade80;
+  --status-warning: #f0b429;
+  /* Deliberately NOT the same value as --series-naive (#f0803c) even
+     though both land in "orange" — found by looking at the rendered
+     exception table next to the comparison chart: an identical hex would
+     make a "Bank credit missing" badge and the chart's "Naive" bars read
+     as the same encoded meaning when they're unrelated. */
+  --status-serious: #e8590c;
+  --status-critical: #ef4444;
 
-  /* Glass panel tokens. First pass at this used 0.7 opacity on the theory
-     that it would protect text contrast — verified by screenshot (this
-     sandbox's browser automation was broken; got a real one working via
-     playwright-core against the system-installed Chrome instead of its own
-     downloaded binary) and it just looked like a plain white card with a
-     barely-visible tint, not glass. Fixed by going the other direction:
-     much lower panel opacity + a far more saturated background for the
-     blur to actually pick up, verified the same way before committing to
-     these exact numbers. */
-  --glass-surface: rgba(255, 255, 255, 0.38);
-  --glass-border: rgba(255, 255, 255, 0.75);
-  --glass-shadow: 0 8px 32px rgba(31, 38, 82, 0.16), 0 1px 2px rgba(31, 38, 82, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --glass-surface: var(--surface);
+  --glass-border: var(--border);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
@@ -49,101 +54,42 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --background: #0d0d0d;
-    --surface: #1a1a19;
-    --foreground: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --border: rgba(255, 255, 255, 0.1);
-    --gridline: #2c2c2a;
-
-    --series-current: #3987e5;
-    --series-naive: #d95926;
-
-    --status-good: #0ca30c;
-    --status-good-text: #0ca30c;
-    --status-warning: #fab219;
-    --status-serious: #ec835a;
-    --status-critical: #e66767;
-
-    --glass-surface: rgba(24, 24, 32, 0.45);
-    --glass-border: rgba(255, 255, 255, 0.14);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-}
-
-:root[data-theme="dark"] {
-  --background: #0d0d0d;
-  --surface: #1a1a19;
-  --foreground: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --border: rgba(255, 255, 255, 0.1);
-  --gridline: #2c2c2a;
-
-  --series-current: #3987e5;
-  --series-naive: #d95926;
-
-  --status-good: #0ca30c;
-  --status-good-text: #0ca30c;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #e66767;
-
-  --glass-surface: rgba(24, 24, 32, 0.45);
-  --glass-border: rgba(255, 255, 255, 0.14);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
 body {
-  /* Ambient backdrop the glass panels actually have something to blur.
-     First pass used two 14-16%-opacity blobs and, verified by screenshot,
-     it was too faint to register as anything — just a white page with a
-     faint tint in two corners. This is deliberately much bolder: four
-     large, saturated blobs built from the palette's own hues (blue/orange
-     already the chart series, green/amber already the status colors —
-     nothing invented for this), covering enough of the viewport that every
-     panel's blur has real color to pick up. Fixed attachment so panels
-     read as floating glass over a static field, not scrolling cards. */
-  background:
-    radial-gradient(at 8% 12%, color-mix(in oklab, var(--series-current) 65%, transparent) 0%, transparent 42%),
-    radial-gradient(at 92% 8%, color-mix(in oklab, var(--status-warning) 55%, transparent) 0%, transparent 40%),
-    radial-gradient(at 85% 90%, color-mix(in oklab, var(--series-naive) 60%, transparent) 0%, transparent 45%),
-    radial-gradient(at 15% 95%, color-mix(in oklab, var(--status-good) 45%, transparent) 0%, transparent 40%),
-    var(--background);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* One restrained glow behind the header, the way framer.com uses exactly
+   one blue glow near its hero and nowhere else — a signature accent, not
+   wallpaper. Fixed so it doesn't reappear lower on the page as you scroll. */
+.ambient-glow {
+  position: fixed;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  background: radial-gradient(ellipse at center, color-mix(in oklab, var(--series-current) 22%, transparent) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .font-tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Frosted glass panel. `-webkit-backdrop-filter` is required for Safari;
-   browsers without backdrop-filter support at all just show the
-   semi-transparent surface color with no blur — a plain translucent card,
-   not broken, so no fallback branch is needed.
-
-   Deliberately inside @layer components, not a bare top-level rule: a few
-   call sites combine glass-panel with a Tailwind border-color utility
-   (e.g. border-[var(--status-critical)]/30) to tint one panel's border for
-   an error/critical state, with no separate border-width utility since
-   glass-panel already supplies that. Tailwind v4's utilities land in
-   @layer utilities, which outranks @layer components — but an unlayered
-   rule outranks EVERY layer regardless of source order, so leaving this
-   unlayered would make those color-tint overrides silently never apply.
-   This is exactly the case Tailwind's own docs give @layer components for. */
+/* Flat dark card, not frosted glass — kept the class name (used across
+   page.tsx and every component) to avoid touching every call site, but
+   the previous backdrop-filter/high-transparency treatment is gone.
+   Framer's own cards are solid, not blurred; there's no vibrant backdrop
+   here for a blur to pick up anyway. */
 @layer components {
   .glass-panel {
     background: var(--glass-surface);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
+    position: relative;
+    z-index: 1;
   }
 }
