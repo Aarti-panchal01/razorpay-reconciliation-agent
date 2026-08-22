@@ -81,7 +81,7 @@ src/
   app/page.tsx             — dashboard: run a batch, see the naive-vs-
                              current comparison and the full exception list.
   app/api/run-batch/       — the one API route.
-tests/                     — 22 tests: tax math, every exception category
+tests/                     — 27 tests: tax math, every exception category
                              by hand, the naive/current TDS comparison,
                              the resolver's fail-closed behavior, and an
                              end-to-end accuracy check against generated
@@ -128,11 +128,27 @@ which has a bank entry). Kept the failing-then-fixed commit history rather
 than squashing it, since this is the kind of mistake that's easy to make
 again in a slightly different shape.
 
+A second one, once the naive-vs-current comparison was pushed across five
+different seeds instead of just seed 42: the test asserted that *every*
+new-regime settlement gets misflagged by the naive baseline, and it failed
+on three of the five seeds by a handful of records each time. Not a flaky
+test — a real ordering fact in `match.ts` that the single-seed version
+had been too small to expose: an orphan settlement (references an order
+that doesn't exist in the ledger) is caught by that check *before* the
+TDS-regime check ever runs, in both naive and current modes, because an
+orphan has a more fundamental problem than its TDS code regardless of
+which regime it claims. The engine's behavior was correct; the test's
+expectation wasn't accounting for it. Fixed by excluding orphaned
+settlements from the expected count rather than loosening the assertion —
+the whole point of this test is that the naive baseline misses *every*
+non-orphan new-regime case, and a looser threshold would have quietly
+hidden a real regression if one were ever introduced.
+
 ## Running it
 
 ```bash
 npm install
-npm test          # 22 tests, ~0.5s
+npm test          # 27 tests, ~0.5s
 npx tsc --noEmit  # typecheck
 npm run build     # production build
 npm run dev       # dashboard at http://localhost:3000 (or next free port)
