@@ -45,7 +45,18 @@ function summarize(report: ReturnType<typeof matchBatch>, includeResults = false
   return {
     ...rest,
     results: includeResults
-      ? results.map(({ candidates: _candidates, ...r }) => r)
+      ? results.map((r) => ({
+          paymentId: r.paymentId,
+          orderId: r.orderId,
+          status: r.status,
+          matchedUtr: r.matchedUtr,
+          expectedNet: r.expectedNet,
+          actualCredited: r.actualCredited,
+          deltaPaise: r.deltaPaise,
+          tdsRegime: r.tdsRegime,
+          reasonCode: r.reasonCode,
+          reasonText: r.reasonText,
+        }))
       : undefined,
   };
 }
