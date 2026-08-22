@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Reconciliation Agent",
+  title: "ReconIQ",
   description: "Multi-rail settlement reconciliation with an honest exception list",
 };
 

@@ -1,4 +1,4 @@
-# Reconciliation Agent
+# ReconIQ
 
 **Track:** AI Finance Controller — Razorpay AI Buildathon 2026
 
@@ -7,6 +7,24 @@ merchant's Razorpay settlements, their bank statement, and their internal
 order ledger — and, unlike a naive implementation, correctly survives the
 live Indian TDS regime transition instead of flagging half the batch as
 anomalous.
+
+**Live:** _add your deployed URL here after `vercel --prod`_
+**Repo:** https://github.com/Aarti-panchal01/reconiq
+
+---
+
+## Contents
+
+- [The problem this is actually solving](#the-problem-this-is-actually-solving)
+- [The actual result](#the-actual-result-not-asserted--reproducible)
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Where AI is used, and where it isn't](#where-ai-is-used-and--just-as-deliberately--where-it-isnt)
+- [What broke, and how we got out](#what-broke-and-how-we-got-out)
+- [Running it](#running-it)
+- [What's intentionally not built](#whats-intentionally-not-built)
+
+---
 
 ## The problem this is actually solving
 
@@ -59,6 +77,61 @@ batch, because the TDS regime is assigned close to 50/50 by design (see
 with seed 42 and 300 orders, and compare the two report panels — these
 numbers came from that exact request, not a smaller sample scaled up.
 
+## How it works
+
+Every settlement goes through the same deterministic decision path first;
+an LLM only ever sees what that path explicitly could not close.
+
+```mermaid
+flowchart TD
+    A[Synthetic batch: settlements + bank statement + ledger] --> B[Tax/settlement unpacking<br/>MDR · GST-on-MDR · TCS §52 · TDS 194O/393-1035]
+    B --> C{Ledger entry<br/>exists for this order?}
+    C -- no --> ORPHAN[["Exception:<br/>orphan_settlement"]]
+    C -- yes --> D{Exact UTR match<br/>in bank statement?}
+
+    D -- "1 match" --> E{Amount matches<br/>exactly?}
+    E -- yes --> MATCHED[["Matched"]]
+    E -- no --> MISMATCH[["Exception:<br/>amount_mismatch"]]
+
+    D -- "2+ matches" --> DUPE[["Exception:<br/>duplicate_utr"]]
+
+    D -- "0 matches" --> F{Unclaimed candidate by<br/>amount + date window?}
+    F -- "none" --> MISSING[["Exception:<br/>unmatched_bank_credit"]]
+    F -- "1 or more" --> AMBIG["Exception:<br/>ambiguous_narration"]
+
+    AMBIG --> G[["LLM resolver<br/>(OpenRouter, tool-calling)"]]
+    G -- "confirm_match" --> RESOLVED[["Matched by resolver"]]
+    G -- "escalate / no key /<br/>error / malformed output" --> STILLAMBIG[["Stays an exception<br/>(fails closed)"]]
+
+    LEDGERONLY[Ledger order with<br/>no settlement at all] --> UNMATCHEDLEDGER[["Exception:<br/>unmatched_ledger"]]
+
+    MATCHED --> REPORT[Reconciliation report:<br/>match rate · throughput ·<br/>exceptions by category]
+    MISMATCH --> REPORT
+    DUPE --> REPORT
+    MISSING --> REPORT
+    ORPHAN --> REPORT
+    UNMATCHEDLEDGER --> REPORT
+    RESOLVED --> REPORT
+    STILLAMBIG --> REPORT
+
+    REPORT --> PERSIST[(Supabase: batch_runs + match_results)]
+    REPORT --> UI[Dashboard: naive-vs-current comparison,<br/>honest exception list, run history]
+```
+
+Two things worth reading off that diagram directly, not just the code:
+
+1. **Every exit from the deterministic path is a named, categorized
+   exception — nothing falls through silently.** `orphan_settlement` is
+   checked *before* anything else, including the TDS-regime check, because
+   an order that doesn't exist has a more fundamental problem than which
+   tax code it claims (this exact ordering is what a real bug — see below —
+   turned up).
+2. **The LLM sits in exactly one box on this diagram.** It never sees the
+   tax math, never sees a clean match, and never overrides a deterministic
+   exception category — it only gets called on the subset that already
+   failed every deterministic check, and its only two possible outcomes
+   feed back into the same report as everything else.
+
 ## Architecture
 
 ```
@@ -78,9 +151,20 @@ src/
     ambiguous-resolver.ts  — the ONLY place an LLM touches this pipeline.
   data/generator.ts        — synthetic fixture generator with a labeled
                              ground truth, deterministic under a seed.
-  app/page.tsx             — dashboard: run a batch, see the naive-vs-
-                             current comparison and the full exception list.
-  app/api/run-batch/       — the one API route.
+  lib/
+    supabase-server.ts     — service-role Supabase client, server-only.
+    persist-run.ts         — saves batch runs + match results; no-ops
+                             gracefully if Supabase isn't configured.
+  app/
+    page.tsx               — dashboard: run a batch, see the naive-vs-
+                             current comparison, exception list, history.
+    api/run-batch/         — runs a batch (naive + current + optional
+                             resolver pass), persists it, returns both.
+    api/runs/               — lists recent persisted runs.
+supabase/schema.sql        — batch_runs + match_results tables, RLS
+                             enabled with no public policies (server-role
+                             access only). Apply by hand via the Supabase
+                             SQL Editor.
 tests/                     — 36 tests: tax math, every exception category
                              by hand, the naive/current TDS comparison,
                              the resolver's fail-closed AND mocked-success
@@ -206,8 +290,10 @@ the engine works identically, it just doesn't save a history.
 No job queue or background worker — batches are 50–2000 rows, not big
 data; a synchronous server action processes that in well under a second,
 and reaching for a queue here would be solving a scale problem this
-project doesn't have. No persistence layer yet (results are computed
-fresh per request) — the deterministic core and its test coverage were
-prioritized over storage, on the theory that a smaller, fully-working
-submission beats a bigger one that's still wiring up its database on
-September 5.
+project doesn't have.
+
+No multi-tenant auth — this is a single-operator reconciliation tool for
+the submission's synthetic merchant, not a SaaS product. Supabase RLS is
+enabled with zero public policies specifically so that decision is
+enforced at the database layer, not just left to "nobody's built a login
+page yet."
