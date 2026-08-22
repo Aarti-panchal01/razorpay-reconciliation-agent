@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateFixture } from "@/data/generator";
 import { matchBatch } from "@/engine/match";
 import { resolveBatchAmbiguities } from "@/engine/resolve-batch";
+import { persistRun } from "@/lib/persist-run";
 
 export async function POST(request: NextRequest) {
   let body: { seed?: number; orderCount?: number; useResolver?: boolean } = {};
@@ -28,6 +29,17 @@ export async function POST(request: NextRequest) {
   if (useResolver) {
     realReport = await resolveBatchAmbiguities(realReport, fixture.settlements);
   }
+
+  // No-ops if Supabase isn't configured — see persist-run.ts. Awaited so a
+  // freshly-run batch shows up immediately in the history list, but it can
+  // never fail the response the dashboard is waiting on.
+  await persistRun({
+    seed,
+    orderCount,
+    usedResolver: useResolver,
+    naiveReport,
+    currentReport: realReport,
+  });
 
   return NextResponse.json({
     seed,

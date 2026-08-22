@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Gauge,
+  History,
   Loader2,
   Play,
+  RotateCcw,
   ScanSearch,
   ShieldAlert,
   Sparkles,
@@ -49,6 +51,16 @@ interface RunBatchResponse {
   current: ReportSummary;
 }
 
+interface RunHistoryEntry {
+  id: string;
+  createdAt: string;
+  seed: number;
+  orderCount: number;
+  usedResolver: boolean;
+  matchRatePct: number;
+  exceptionCount: number;
+}
+
 const CATEGORY_KEYS = Object.keys({
   unmatched_bank_credit: 0,
   unmatched_ledger: 0,
@@ -66,6 +78,41 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<RunBatchResponse | null>(null);
+  const [history, setHistory] = useState<RunHistoryEntry[]>([]);
+
+  async function loadHistory() {
+    try {
+      const res = await fetch("/api/runs");
+      if (!res.ok) return;
+      const json = (await res.json()) as { runs: RunHistoryEntry[] };
+      setHistory(json.runs);
+    } catch {
+      // History is a nice-to-have — a failed fetch here shouldn't surface
+      // as a page-level error when the actual reconciliation flow is fine.
+    }
+  }
+
+  // Not just `loadHistory()` directly — that flags "avoid calling setState
+  // synchronously within an effect" because the linter can't see into a
+  // separately-defined function. The `ignore` flag also does something
+  // loadHistory() alone wouldn't: it skips the setState if this effect's
+  // cleanup already ran (component unmounted) before the fetch resolves.
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/runs");
+        if (!res.ok || ignore) return;
+        const json = (await res.json()) as { runs: RunHistoryEntry[] };
+        if (!ignore) setHistory(json.runs);
+      } catch {
+        // Same reasoning as loadHistory() above — non-fatal.
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   async function runBatch() {
     setLoading(true);
@@ -79,6 +126,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(`Request failed: ${res.status}`);
       const json = (await res.json()) as RunBatchResponse;
       setData(json);
+      loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error — the batch did not complete.");
     } finally {
@@ -243,6 +291,60 @@ export default function Dashboard() {
               <ExceptionTable rows={exceptions} />
             </section>
           </>
+        )}
+
+        {history.length > 0 && (
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <History size={15} className="text-[var(--text-muted)]" />
+              <h2 className="text-sm font-semibold">Recent runs</h2>
+              <span className="text-xs text-[var(--text-muted)]">persisted in Supabase</span>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                    <th className="px-4 py-2.5 font-medium">When</th>
+                    <th className="px-4 py-2.5 font-medium">Seed</th>
+                    <th className="px-4 py-2.5 font-medium">Orders</th>
+                    <th className="px-4 py-2.5 font-medium">Resolver</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Match rate</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Exceptions</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((run) => (
+                    <tr key={run.id} className="border-b border-[var(--border)] last:border-0">
+                      <td className="px-4 py-2.5 text-xs text-[var(--text-secondary)] whitespace-nowrap">
+                        {new Date(run.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2.5 font-tabular">{run.seed}</td>
+                      <td className="px-4 py-2.5 font-tabular">{run.orderCount}</td>
+                      <td className="px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+                        {run.usedResolver ? "on" : "off"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-tabular">{run.matchRatePct.toFixed(1)}%</td>
+                      <td className="px-4 py-2.5 text-right font-tabular">{run.exceptionCount}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => {
+                            setSeed(run.seed);
+                            setOrderCount(run.orderCount);
+                            setUseResolver(run.usedResolver);
+                          }}
+                          className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--foreground)]"
+                          title="Load these parameters"
+                        >
+                          <RotateCcw size={12} /> load
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
       </div>
     </main>
